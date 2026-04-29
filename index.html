@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Šibenice</title>
+  <style>
+    :root {
+      --c-bg:        #0e0c22;
+      --c-glass:     rgba(255,255,255,0.065);
+      --c-glass-b:   rgba(255,255,255,0.11);
+      --c-text:      #ede9ff;
+      --c-muted:     rgba(237,233,255,0.5);
+      --c-accent:    #9b7fe8;
+      --c-accent-lt: #c4aeff;
+      --c-ok:        #2dc98c;
+      --c-err:       #e86060;
+      --c-gallows:   rgba(200,195,235,0.72);
+      --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+      --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+      --r-s: 8px; --r-m: 14px; --r-l: 22px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(145deg, #1a1245 0%, var(--c-bg) 45%, #0a1530 100%);
+      color: var(--c-text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--sp-4) var(--sp-4) var(--sp-8);
+      gap: var(--sp-6);
+    }
+
+    header { padding-top: var(--sp-4); text-align: center; }
+
+    h1 {
+      font-size: clamp(2rem, 5.5vw, 3rem);
+      font-weight: 900;
+      letter-spacing: -.03em;
+      background: linear-gradient(110deg, #c4aeff 0%, #7abaff 55%, #5ee7b0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    main {
+      width: 100%;
+      max-width: 860px;
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: var(--sp-6);
+      align-items: start;
+    }
+
+    .card {
+      background: var(--c-glass);
+      border: 1px solid var(--c-glass-b);
+      border-radius: var(--r-l);
+      backdrop-filter: blur(18px) saturate(1.4);
+      -webkit-backdrop-filter: blur(18px) saturate(1.4);
+      padding: var(--sp-6);
+    }
+
+    /* ── Hangman panel ── */
+
+    #hangman-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--sp-4);
+    }
+
+    #hangman-svg { width: 100%; max-width: 170px; height: auto; }
+
+    .hp {
+      opacity: 0;
+      transition: opacity 0.45s cubic-bezier(.34,1.56,.64,1);
+    }
+    .hp.on { opacity: 1; }
+
+    .err-info {
+      text-align: center;
+      font-size: .8rem;
+      color: var(--c-muted);
+      line-height: 1.7;
+    }
+    .err-info b {
+      display: block;
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--c-err);
+      line-height: 1;
+    }
+
+    /* ── Game panel ── */
+
+    #game-panel {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-5);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px var(--sp-3);
+      background: rgba(155,127,232,.15);
+      border: 1px solid rgba(155,127,232,.3);
+      border-radius: 999px;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--c-accent-lt);
+    }
+    .tag-label { opacity: .6; font-weight: 400; }
+
+    /* ── Word display ── */
+
+    #word-display {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp-2);
+      min-height: 58px;
+      align-items: flex-end;
+    }
+
+    .ls {
+      position: relative;
+      width: 33px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ls::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 2px; right: 2px;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--c-glass-b);
+      transition: background .3s;
+    }
+
+    .ls.ok::after  { background: rgba(155,127,232,.55); }
+    .ls.err::after { background: rgba(232,96,96,.55); }
+
+    .lc {
+      font-size: 1.45rem;
+      font-weight: 800;
+      opacity: 0;
+      transform: translateY(-10px) scale(.8);
+      transition: opacity .32s ease, transform .38s cubic-bezier(.34,1.56,.64,1);
+      color: var(--c-text);
+    }
+
+    .ls.ok  .lc { opacity: 1; transform: none; }
+    .ls.err .lc { opacity: 1; transform: none; color: var(--c-err); }
+
+    /* ── Result ── */
+
+    #result {
+      padding: var(--sp-3) var(--sp-5);
+      border-radius: var(--r-m);
+      font-weight: 700;
+      font-size: .95rem;
+      text-align: center;
+      display: none;
+    }
+    #result.win {
+      display: block;
+      background: rgba(45,201,140,.1);
+      border: 1px solid rgba(45,201,140,.35);
+      color: var(--c-ok);
+    }
+    #result.lose {
+      display: block;
+      background: rgba(232,96,96,.1);
+      border: 1px solid rgba(232,96,96,.35);
+      color: var(--c-err);
+    }
+
+    /* ── Keyboard ── */
+
+    #keyboard {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .kb {
+      min-width: 34px;
+      height: 38px;
+      padding: 0 5px;
+      background: var(--c-glass);
+      border: 1px solid var(--c-glass-b);
+      border-radius: var(--r-s);
+      color: var(--c-text);
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, transform .1s, opacity .2s;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .kb:hover:not(:disabled) {
+      background: rgba(155,127,232,.22);
+      border-color: var(--c-accent);
+      transform: translateY(-2px);
+    }
+    .kb:active:not(:disabled) { transform: none; }
+    .kb:focus-visible { outline: 2px solid var(--c-accent-lt); outline-offset: 2px; }
+    .kb:disabled { cursor: default; opacity: .3; }
+
+    .kb.ok {
+      background: rgba(45,201,140,.12);
+      border-color: rgba(45,201,140,.4);
+      color: var(--c-ok);
+    }
+    .kb.err {
+      background: rgba(232,96,96,.1);
+      border-color: rgba(232,96,96,.3);
+      color: var(--c-err);
+    }
+
+    /* ── New game button ── */
+
+    #new-game {
+      align-self: flex-start;
+      padding: var(--sp-3) var(--sp-6);
+      background: linear-gradient(135deg, var(--c-accent), #60a5fa);
+      border: none;
+      border-radius: var(--r-m);
+      color: #fff;
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .18s, box-shadow .18s;
+    }
+    #new-game:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(155,127,232,.4); }
+    #new-game:active { transform: none; }
+    #new-game:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+    /* ── Shake animation ── */
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%     { transform: translateX(-7px); }
+      40%     { transform: translateX(7px); }
+      60%     { transform: translateX(-5px); }
+      80%     { transform: translateX(5px); }
+    }
+    .shake { animation: shake .42s ease; }
+
+    /* ── Responsive ── */
+
+    @media (max-width: 620px) {
+      main { grid-template-columns: 1fr; }
+
+      #hangman-panel {
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: var(--sp-6);
+      }
+
+      #hangman-svg { max-width: 120px; }
+      .ls { width: 28px; height: 44px; }
+      .lc { font-size: 1.2rem; }
+      .kb { min-width: 28px; height: 33px; font-size: .75rem; }
+    }
+
+    .sr {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Šibenice</h1>
+</header>
+
+<main>
+  <section id="hangman-panel" class="card" aria-label="Obrázek šibenice">
+    <svg id="hangman-svg" viewBox="0 0 180 230" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <!-- Gallows (chyby 1–4) -->
+      <line class="hp" id="hp1" x1="10" y1="220" x2="170" y2="220"
+            stroke="var(--c-gallows)" stroke-width="4" stroke-linecap="round"/>
+      <line class="hp" id="hp2" x1="50" y1="220" x2="50" y2="15"
+            stroke="var(--c-gallows)" stroke-width="4" stroke-linecap="round"/>
+      <line class="hp" id="hp3" x1="50" y1="15"  x2="130" y2="15"
+            stroke="var(--c-gallows)" stroke-width="4" stroke-linecap="round"/>
+      <line class="hp" id="hp4" x1="130" y1="15" x2="130" y2="44"
+            stroke="var(--c-gallows)" stroke-width="3" stroke-linecap="round"/>
+      <!-- Postava (chyby 5–10) -->
+      <circle class="hp" id="hp5" cx="130" cy="62" r="18"
+              fill="none" stroke="var(--c-err)" stroke-width="3"/>
+      <line class="hp" id="hp6" x1="130" y1="80"  x2="130" y2="142"
+            stroke="var(--c-err)" stroke-width="3" stroke-linecap="round"/>
+      <line class="hp" id="hp7" x1="130" y1="100" x2="100" y2="124"
+            stroke="var(--c-err)" stroke-width="3" stroke-linecap="round"/>
+      <line class="hp" id="hp8" x1="130" y1="100" x2="160" y2="124"
+            stroke="var(--c-err)" stroke-width="3" stroke-linecap="round"/>
+      <line class="hp" id="hp9" x1="130" y1="142" x2="104" y2="180"
+            stroke="var(--c-err)" stroke-width="3" stroke-linecap="round"/>
+      <line class="hp" id="hp10" x1="130" y1="142" x2="156" y2="180"
+            stroke="var(--c-err)" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+
+    <div class="err-info">
+      <b id="err-val">0</b>
+      chyb z 10
+    </div>
+  </section>
+
+  <section id="game-panel" class="card" aria-label="Herní plocha">
+    <div>
+      <span class="tag">
+        <span class="tag-label">Kategorie</span>
+        <span id="cat-val">–</span>
+      </span>
+    </div>
+
+    <div id="word-display" role="group" aria-label="Hledané slovo"></div>
+
+    <div id="result"></div>
+
+    <div id="keyboard" role="group" aria-label="Virtuální klávesnice"></div>
+
+    <button id="new-game" type="button">Nová hra</button>
+  </section>
+</main>
+
+<div id="sr-live" class="sr" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+'use strict';
+
+const WORDS = [
+  { slovo: 'MEDVĚD',      kategorie: 'ZVÍŘE'       },
+  { slovo: 'ŽIRAFA',      kategorie: 'ZVÍŘE'       },
+  { slovo: 'SLON',        kategorie: 'ZVÍŘE'       },
+  { slovo: 'DELFÍN',      kategorie: 'ZVÍŘE'       },
+  { slovo: 'TYGR',        kategorie: 'ZVÍŘE'       },
+  { slovo: 'KOALA',       kategorie: 'ZVÍŘE'       },
+  { slovo: 'GEPARD',      kategorie: 'ZVÍŘE'       },
+  { slovo: 'VLČEK',       kategorie: 'ZVÍŘE'       },
+  { slovo: 'NOSOROŽEC',   kategorie: 'ZVÍŘE'       },
+  { slovo: 'JAHODA',      kategorie: 'OVOCE'       },
+  { slovo: 'MALINA',      kategorie: 'OVOCE'       },
+  { slovo: 'BORŮVKA',     kategorie: 'OVOCE'       },
+  { slovo: 'MELOUN',      kategorie: 'OVOCE'       },
+  { slovo: 'ANANAS',      kategorie: 'OVOCE'       },
+  { slovo: 'TŘEŠEŇ',      kategorie: 'OVOCE'       },
+  { slovo: 'BROSKEV',     kategorie: 'OVOCE'       },
+  { slovo: 'HRUŠKA',      kategorie: 'OVOCE'       },
+  { slovo: 'PRAHA',       kategorie: 'MĚSTO'        },
+  { slovo: 'BRNO',        kategorie: 'MĚSTO'        },
+  { slovo: 'OSTRAVA',     kategorie: 'MĚSTO'        },
+  { slovo: 'OLOMOUC',     kategorie: 'MĚSTO'        },
+  { slovo: 'PLZEŇ',       kategorie: 'MĚSTO'        },
+  { slovo: 'LIBEREC',     kategorie: 'MĚSTO'        },
+  { slovo: 'PARDUBICE',   kategorie: 'MĚSTO'        },
+  { slovo: 'TELEFON',     kategorie: 'ELEKTRONIKA'  },
+  { slovo: 'POČÍTAČ',     kategorie: 'ELEKTRONIKA'  },
+  { slovo: 'TELEVIZOR',   kategorie: 'ELEKTRONIKA'  },
+  { slovo: 'TABLET',      kategorie: 'ELEKTRONIKA'  },
+  { slovo: 'NOTEBOOK',    kategorie: 'ELEKTRONIKA'  },
+  { slovo: 'MONITOR',     kategorie: 'ELEKTRONIKA'  },
+  { slovo: 'REPRODUKTOR', kategorie: 'ELEKTRONIKA'  },
+  { slovo: 'HORA',        kategorie: 'PŘÍRODA'      },
+  { slovo: 'ŘEKA',        kategorie: 'PŘÍRODA'      },
+  { slovo: 'JEZERO',      kategorie: 'PŘÍRODA'      },
+  { slovo: 'SOPKA',       kategorie: 'PŘÍRODA'      },
+  { slovo: 'POUŠŤ',       kategorie: 'PŘÍRODA'      },
+];
+
+const ALPHABET = [
+  'A','Á','B','C','Č','D','Ď','E','É','Ě',
+  'F','G','H','I','Í','J','K','L','M','N',
+  'Ň','O','Ó','P','R','Ř','S','Š','T','Ť',
+  'U','Ú','Ů','V','Y','Ý','Z','Ž'
+];
+
+const MAX = 10;
+
+// ── State ──────────────────────────────────────────────────────────────────────
+
+let s = {};
+
+function createState() {
+  const w = WORDS[Math.floor(Math.random() * WORDS.length)];
+  return {
+    word:    w.slovo,
+    cat:     w.kategorie,
+    errors:  0,
+    guessed: new Set(),
+    used:    new Set(),
+    over:    false,
+    won:     false,
+  };
+}
+
+// ── DOM refs ───────────────────────────────────────────────────────────────────
+
+const D = {
+  errVal:   document.getElementById('err-val'),
+  catVal:   document.getElementById('cat-val'),
+  wordDisp: document.getElementById('word-display'),
+  keyboard: document.getElementById('keyboard'),
+  result:   document.getElementById('result'),
+  srLive:   document.getElementById('sr-live'),
+  svg:      document.getElementById('hangman-svg'),
+};
+
+// ── Full render (new game) ─────────────────────────────────────────────────────
+
+function fullRender() {
+  renderHangman();
+  D.errVal.textContent = s.errors;
+  D.catVal.textContent = s.cat;
+  buildWordSlots();
+  buildKeyboard();
+  showResult();
+}
+
+function renderHangman() {
+  for (let i = 1; i <= MAX; i++)
+    document.getElementById(`hp${i}`).classList.toggle('on', i <= s.errors);
+}
+
+function buildWordSlots() {
+  D.wordDisp.innerHTML = '';
+  [...s.word].forEach(letter => {
+    const slot = document.createElement('div');
+    slot.className = 'ls';
+
+    const ch = document.createElement('span');
+    ch.className = 'lc';
+    ch.textContent = letter;
+    ch.setAttribute('aria-hidden', 'true');
+
+    slot.appendChild(ch);
+    D.wordDisp.appendChild(slot);
+  });
+}
+
+function buildKeyboard() {
+  D.keyboard.innerHTML = '';
+  ALPHABET.forEach(letter => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'kb';
+    btn.textContent = letter;
+    btn.setAttribute('aria-label', `Písmeno ${letter}`);
+
+    const used = s.used.has(letter);
+    if (used || s.over) {
+      btn.disabled = true;
+      if (used) btn.classList.add(s.guessed.has(letter) ? 'ok' : 'err');
+    } else {
+      btn.addEventListener('click', () => guess(letter));
+    }
+
+    D.keyboard.appendChild(btn);
+  });
+}
+
+function showResult() {
+  const r = D.result;
+  r.className = '';
+  r.style.display = 'none';
+  if (!s.over) return;
+  r.className = s.won ? 'win' : 'lose';
+  r.textContent = s.won
+    ? 'Gratulujeme! Slovo jsi uhodl(a)!'
+    : `Prohra. Hledané slovo bylo: ${s.word}`;
+}
+
+// ── Partial render helpers ─────────────────────────────────────────────────────
+
+function updateWordSlots() {
+  const slots = [...D.wordDisp.querySelectorAll('.ls')];
+  [...s.word].forEach((letter, i) => {
+    const slot = slots[i];
+    if (!slot) return;
+    const ok  = s.guessed.has(letter);
+    const err = s.over && !s.won && !ok;
+    if (ok  && !slot.classList.contains('ok'))
+      requestAnimationFrame(() => slot.classList.add('ok'));
+    if (err && !slot.classList.contains('err'))
+      requestAnimationFrame(() => slot.classList.add('err'));
+  });
+}
+
+function markKeyUsed(letter, correct) {
+  const btns = D.keyboard.querySelectorAll('.kb');
+  for (const btn of btns) {
+    if (btn.textContent === letter) {
+      btn.disabled = true;
+      btn.classList.add(correct ? 'ok' : 'err');
+      break;
+    }
+  }
+  if (s.over) {
+    for (const btn of btns) btn.disabled = true;
+  }
+}
+
+// ── Game logic ─────────────────────────────────────────────────────────────────
+
+function guess(letter) {
+  if (s.used.has(letter) || s.over) return;
+  s.used.add(letter);
+
+  const correct = [...s.word].includes(letter);
+
+  if (correct) {
+    s.guessed.add(letter);
+    if ([...s.word].every(l => s.guessed.has(l))) {
+      s.over = true;
+      s.won  = true;
+      say(`Výhra! Slovo bylo: ${s.word}.`);
+    } else {
+      say(`Správně! Písmeno ${letter} je ve slově.`);
+    }
+  } else {
+    s.errors++;
+    shakeHangman();
+    if (s.errors >= MAX) {
+      s.over = true;
+      s.won  = false;
+      say(`Prohra. Hledané slovo bylo: ${s.word}.`);
+    } else {
+      say(`Chybné písmeno ${letter}. Chyb: ${s.errors} z ${MAX}.`);
+    }
+  }
+
+  renderHangman();
+  D.errVal.textContent = s.errors;
+  updateWordSlots();
+  markKeyUsed(letter, correct);
+  showResult();
+}
+
+function shakeHangman() {
+  D.svg.classList.remove('shake');
+  void D.svg.offsetWidth;
+  D.svg.classList.add('shake');
+  D.svg.addEventListener('animationend', () => D.svg.classList.remove('shake'), { once: true });
+}
+
+function say(msg) {
+  D.srLive.textContent = '';
+  requestAnimationFrame(() => { D.srLive.textContent = msg; });
+}
+
+// ── New game ───────────────────────────────────────────────────────────────────
+
+function newGame() {
+  s = createState();
+  fullRender();
+  say(`Nová hra. Kategorie: ${s.cat}. Slovo má ${s.word.length} písmen.`);
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('new-game').addEventListener('click', newGame);
+
+document.addEventListener('keydown', e => {
+  if (s.over || e.ctrlKey || e.altKey || e.metaKey) return;
+  const key = e.key.length === 1 ? e.key.toUpperCase() : null;
+  if (key && ALPHABET.includes(key) && !s.used.has(key)) guess(key);
+});
+
+// ── Boot ───────────────────────────────────────────────────────────────────────
+
+newGame();
+</script>
+</body>
+</html>
